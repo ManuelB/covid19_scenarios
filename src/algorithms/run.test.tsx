@@ -1,6 +1,7 @@
 import { writeFileSync } from 'fs';
+import moment from 'moment'
 
-import {AllParamsFlat} from './Param.types'
+import {AllParamsFlat, SimulationData} from './Param.types'
 
 import countryAgeDistribution from '../assets/data/country_age_distribution.json'
 import countryCaseCounts from '../assets/data/case_counts.json'
@@ -9,7 +10,7 @@ import populationScenarios from '../assets/data/scenarios/populations'
 import epidemiologicalScenarios from '../assets/data/scenarios/epidemiological'
 import simulationData from '../assets/data/scenarios/simulation'
 import containmentScenarios from '../assets/data/scenarios/containment'
-import RKI_Landkreisdaten_Points from '../../../germany/rki-dashboard/RKI_Landkreisdaten_Points.json'
+import RKI_Landkreisdaten_Points from '../../../germany/kreise_with_covid19_and_hospital_count.json'
 
 import run from './run'
 
@@ -69,46 +70,71 @@ describe('run()', () => {
   */
 
  it('should work for all german districts', async () => {
-  const results : Record<string, any> = {
-    "type": "FeatureCollection",
-    "name": "RKI_Landkreisdaten_Points",
-    "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
-    "features": []
-  };
+  
 
   const country = "Germany"
   const population = {...populationScenarios.filter(p => p.name === country)[0].data};
 
+  const mitigationStrategies : Record<string, number> = {
+    "No_Mitigation": 0,
+    "Strong_Mitigation": 3 
+  };
 
-  for(let district of RKI_Landkreisdaten_Points.features) {
-    try {
-      const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
+  for(let mitigationStrategy in mitigationStrategies) {
+    const results : Record<string, any> = {
+      "type": "FeatureCollection",
+      "name": "RKI_Landkreisdaten_Points",
+      "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+      "features": []
+    };
+    for(let district of RKI_Landkreisdaten_Points.features) {
+      try {
+        const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
 
-      population.suspectedCasesToday = district.properties.cases;
-      population.cases = district.properties.cases.toString();
+        
+        population.populationServed = district.properties.EWZ
+        population.suspectedCasesToday = district.properties.cases;
+        population.cases = district.properties.cases.toString();
+        population.importsPerDay = district.properties.EWZ/80000000*12.2
 
-      const result = await run({
-        ...population,
-        ...epidemiologicalScenarios[1].data,
-        ...simulationData
-      }, severityData, countryAgeDistributionWithType[country], containmentScenarios[3].data.reduction)
+        const simulationDataTimeRange: SimulationData = {
+          simulationTimeRange: {
+            tMin: moment('2020-03-21').toDate(),
+            tMax: moment('2020-03-21')
+              .add(0.5, 'year')
+              .toDate(),
+          },
+          numberStochasticRuns: 0,
+        }
 
-      for(let simulationPoint of result.deterministicTrajectory) {
-        const point : any = { "type": "Feature", "properties": {
-          "Name": district.properties.GEN,
-          "Inhabitans": district.properties.EWZ,
-        }, "geometry": district.geometry};
-        point.properties.time = new Date(simulationPoint.time)
-        point.properties.infectiousTotal = simulationPoint.infectious.total
-        // patients in ICU
-        point.properties.intensiveTotal = simulationPoint.critical.total
-        results.features.push(point);
+        const result = await run({
+          ...population,
+          ...epidemiologicalScenarios[1].data,
+          ...simulationDataTimeRange
+        }, severityData, countryAgeDistributionWithType[country], containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
+
+        // 246 beds in average in a german hospital, 23890 ICU beds and 500680 in total  
+        const Hospital_ICU_Capacity = district.properties.Krankenhaeuser*246*(23890/500680)
+
+        for(let simulationPoint of result.deterministicTrajectory) {
+          const point : any = { "type": "Feature", "properties": {
+            "Name": district.properties.GEN,
+            "Inhabitans": district.properties.EWZ,
+            "Hospital_ICU_Capacity": Hospital_ICU_Capacity,
+            "Hospital_Overcapacity": simulationPoint.critical.total > Hospital_ICU_Capacity ? true : false
+          }, "geometry": district.geometry};
+          point.properties.time = new Date(simulationPoint.time)
+          point.properties.infectiousTotal = simulationPoint.infectious.total
+          // patients in ICU
+          point.properties.intensiveTotal = simulationPoint.critical.total
+          results.features.push(point);
+        }
+      } catch(e) {
+        console.error(e);
       }
-    } catch(e) {
-      console.error(e);
+      // break;
     }
-    // break;
+    writeFileSync("../simulation/Simulated_Landkreise_"+mitigationStrategy+".geojson", JSON.stringify(results))
   }
-  writeFileSync("Simulated_Landkreise.geojson", JSON.stringify(results, undefined, "  "))
  })
 })
