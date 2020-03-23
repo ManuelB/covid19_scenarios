@@ -12,6 +12,7 @@ import simulationData from '../assets/data/scenarios/simulation'
 import containmentScenarios from '../assets/data/scenarios/containment'
 import RKI_Landkreisdaten_Points from '../../../germany/kreise_with_covid19_and_hospital_count.json'
 import RKI_Landkreise_Intensivbetten from '../../../germany/RP-NW-Intensivbetten/RKI_Landkreise_Intensivbetten.json'
+import Germany_Kreis_Population from '../../../germany/Germany_Kreis_Population.json'
 
 
 import run from './run'
@@ -157,9 +158,10 @@ describe('run()', () => {
       "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
       "features": []
     };
+    const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
+    const Germany_Kreis_PopulationWithType = Germany_Kreis_Population as Record<string, any>;
     for(let district of RKI_Landkreise_Intensivbetten.features) {
       try {
-        const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
 
         
         population.populationServed = district.properties.EWZ
@@ -177,11 +179,13 @@ describe('run()', () => {
           numberStochasticRuns: 0,
         }
 
+        const oAgeDistributionOfDistrict = district.properties.AGS in Germany_Kreis_PopulationWithType ? Germany_Kreis_PopulationWithType[district.properties.AGS] : countryAgeDistributionWithType[country]
+
         const result = await run({
           ...population,
           ...epidemiologicalScenarios[1].data,
           ...simulationDataTimeRange
-        }, severityData, countryAgeDistributionWithType[country], containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
+        }, severityData, oAgeDistributionOfDistrict, containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
 
         const Hospital_ICU_Capacity = parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.2
 
@@ -191,7 +195,7 @@ describe('run()', () => {
             "Inhabitans": district.properties.EWZ,
             "Hospital_ICU_Capacity_Total" :parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten),
             "Hospital_ICU_Capacity": Hospital_ICU_Capacity,
-            "Hospital_Overcapacity": simulationPoint.critical.total > Hospital_ICU_Capacity ? true : false
+            "Hospital_Overcapacity": Hospital_ICU_Capacity+0.5 < simulationPoint.critical.total ? true : false
           }, "geometry": district.geometry};
           point.properties.time = new Date(simulationPoint.time)
           point.properties.infectiousTotal = simulationPoint.infectious.total
