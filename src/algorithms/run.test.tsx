@@ -189,6 +189,7 @@ describe('run()', () => {
           const point : any = { "type": "Feature", "properties": {
             "Name": district.properties.GEN,
             "Inhabitans": district.properties.EWZ,
+            "Hospital_ICU_Capacity_Total" :parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten),
             "Hospital_ICU_Capacity": Hospital_ICU_Capacity,
             "Hospital_Overcapacity": simulationPoint.critical.total > Hospital_ICU_Capacity ? true : false
           }, "geometry": district.geometry};
