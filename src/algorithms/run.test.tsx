@@ -11,7 +11,7 @@ import epidemiologicalScenarios from '../assets/data/scenarios/epidemiological'
 import simulationData from '../assets/data/scenarios/simulation'
 import containmentScenarios from '../assets/data/scenarios/containment'
 import RKI_Landkreisdaten_Points from '../../../germany/kreise_with_covid19_and_hospital_count.json'
-import RKI_Landkreise_Intensivbetten from '../../../germany/RP-NW-Intensivbetten/RKI_Landkreise_Intensivbetten.json'
+import RKI_Landkreise_Intensivbetten from '../../../germany/Intensivbetten/RKI_Landkreise_Intensivbetten.json'
 import Germany_Kreis_Population from '../../../germany/Germany_Kreis_Population.json'
 
 
@@ -160,6 +160,12 @@ describe('run()', () => {
     };
     const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
     const Germany_Kreis_PopulationWithType = Germany_Kreis_Population as Record<string, any>;
+    
+    const epidemiologicalData = epidemiologicalScenarios[1].data;
+
+    epidemiologicalData.lengthHospitalStay = 10
+
+
     for(let district of RKI_Landkreise_Intensivbetten.features) {
       try {
 
@@ -171,9 +177,9 @@ describe('run()', () => {
 
         const simulationDataTimeRange: SimulationData = {
           simulationTimeRange: {
-            tMin: moment('2020-03-23').toDate(),
-            tMax: moment('2020-03-23')
-              .add(0.5, 'year')
+            tMin: moment('2020-03-25').toDate(),
+            tMax: moment('2020-03-25')
+              .add(3, 'month')
               .toDate(),
           },
           numberStochasticRuns: 0,
@@ -183,7 +189,7 @@ describe('run()', () => {
 
         const result = await run({
           ...population,
-          ...epidemiologicalScenarios[1].data,
+          ...epidemiologicalData,
           ...simulationDataTimeRange
         }, severityData, oAgeDistributionOfDistrict, containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
 
@@ -199,6 +205,9 @@ describe('run()', () => {
           }, "geometry": district.geometry};
           point.properties.time = new Date(simulationPoint.time)
           point.properties.infectiousTotal = simulationPoint.infectious.total
+          point.properties.deadTotal = simulationPoint.dead.total
+          point.properties.hospitalizedTotal = simulationPoint.hospitalized
+          
           // patients in ICU
           point.properties.intensiveTotal = simulationPoint.critical.total
           results.features.push(point);
@@ -208,7 +217,7 @@ describe('run()', () => {
       }
       // break;
     }
-    writeFileSync("../simulation/RP-NW_Landkreise_Intensivbetten_"+mitigationStrategy+".geojson", JSON.stringify(results))
+    writeFileSync("../simulation/2020-03-25-RP-NW-SN-MV_Landkreise_Intensivbetten_"+mitigationStrategy+"-3-month.geojson", JSON.stringify(results))
   }
  })
 })
