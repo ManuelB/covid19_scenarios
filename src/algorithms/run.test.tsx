@@ -165,6 +165,17 @@ describe('run()', () => {
 
     epidemiologicalData.lengthHospitalStay = 10
 
+    let sDate = '2020-03-26'
+
+    const simulationDataTimeRange: SimulationData = {
+      simulationTimeRange: {
+        tMin: moment(sDate).toDate(),
+        tMax: moment(sDate)
+          .add(3, 'month')
+          .toDate(),
+      },
+      numberStochasticRuns: 0,
+    }
 
     for(let district of RKI_Landkreise_Intensivbetten.features) {
       try {
@@ -175,17 +186,8 @@ describe('run()', () => {
         population.cases = district.properties.cases.toString();
         population.importsPerDay = district.properties.EWZ/80000000*12.2
 
-        const simulationDataTimeRange: SimulationData = {
-          simulationTimeRange: {
-            tMin: moment('2020-03-25').toDate(),
-            tMax: moment('2020-03-25')
-              .add(3, 'month')
-              .toDate(),
-          },
-          numberStochasticRuns: 0,
-        }
 
-        const oAgeDistributionOfDistrict = district.properties.AGS in Germany_Kreis_PopulationWithType ? Germany_Kreis_PopulationWithType[district.properties.AGS] : countryAgeDistributionWithType[country]
+        const oAgeDistributionOfDistrict = district.properties.RS in Germany_Kreis_PopulationWithType ? Germany_Kreis_PopulationWithType[district.properties.RS] : countryAgeDistributionWithType[country]
 
         const result = await run({
           ...population,
@@ -193,7 +195,7 @@ describe('run()', () => {
           ...simulationDataTimeRange
         }, severityData, oAgeDistributionOfDistrict, containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
 
-        const Hospital_ICU_Capacity = parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.2
+        const Hospital_ICU_Capacity = parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.5
 
         for(let simulationPoint of result.deterministicTrajectory) {
           const point : any = { "type": "Feature", "properties": {
@@ -206,7 +208,6 @@ describe('run()', () => {
           point.properties.time = new Date(simulationPoint.time)
           point.properties.infectiousTotal = simulationPoint.infectious.total
           point.properties.deadTotal = simulationPoint.dead.total
-          point.properties.hospitalizedTotal = simulationPoint.hospitalized
           
           // patients in ICU
           point.properties.intensiveTotal = simulationPoint.critical.total
@@ -217,7 +218,7 @@ describe('run()', () => {
       }
       // break;
     }
-    writeFileSync("../simulation/2020-03-25-RP-NW-SN-MV_Landkreise_Intensivbetten_"+mitigationStrategy+"-3-month.geojson", JSON.stringify(results))
+    writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-3-month.geojson", JSON.stringify(results))
   }
  })
 })
