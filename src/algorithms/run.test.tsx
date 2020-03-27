@@ -165,7 +165,7 @@ describe('run()', () => {
 
     epidemiologicalData.lengthHospitalStay = 10
 
-    let sDate = '2020-03-26'
+    let sDate = '2020-03-27'
 
     const simulationDataTimeRange: SimulationData = {
       simulationTimeRange: {
