@@ -163,15 +163,15 @@ describe('run()', () => {
     
     const epidemiologicalData = epidemiologicalScenarios[1].data;
 
-    epidemiologicalData.lengthHospitalStay = 10
+    // epidemiologicalData.lengthHospitalStay = 10
 
-    let sDate = '2020-03-27'
+    let sDate = '2020-03-28'
 
     const simulationDataTimeRange: SimulationData = {
       simulationTimeRange: {
         tMin: moment(sDate).toDate(),
         tMax: moment(sDate)
-          .add(3, 'month')
+          .add(1, 'month')
           .toDate(),
       },
       numberStochasticRuns: 0,
@@ -218,7 +218,7 @@ describe('run()', () => {
       }
       // break;
     }
-    writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-3-month.geojson", JSON.stringify(results))
+    writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-1-month.geojson", JSON.stringify(results))
   }
  })
 })
