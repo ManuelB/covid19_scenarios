@@ -2,6 +2,9 @@ import { writeFileSync } from 'fs';
 import moment from 'moment'
 
 import {AllParamsFlat, SimulationData} from './Param.types'
+import { makeTimeSeries } from './TimeSeries'
+import { ContainmentData } from 'Param.types'
+
 
 import countryAgeDistribution from '../assets/data/country_age_distribution.json'
 import countryCaseCounts from '../assets/data/case_counts.json'
@@ -148,7 +151,7 @@ describe('run()', () => {
   const population = {...populationScenarios.filter(p => p.name === country)[0].data};
 
   const mitigationStrategies : Record<string, number> = {
-    "Strong_Mitigation": 3 
+    "Custom_Mitigation": 99 
   };
 
   for(let mitigationStrategy in mitigationStrategies) {
@@ -165,7 +168,7 @@ describe('run()', () => {
 
     // epidemiologicalData.lengthHospitalStay = 10
 
-    let sDate = '2020-03-28'
+    let sDate = '2020-03-31'
 
     const simulationDataTimeRange: SimulationData = {
       simulationTimeRange: {
@@ -177,11 +180,14 @@ describe('run()', () => {
       numberStochasticRuns: 0,
     }
 
+    // modified strong mitigation
+    let oMitgationStrategy : ContainmentData = {reduction: makeTimeSeries(simulationData.simulationTimeRange, [0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4])};
+
     for(let district of RKI_Landkreise_Intensivbetten.features) {
       try {
 
         
-        population.populationServed = district.properties.EWZ
+        population.populationServed = district.properties.EWZ;
         population.suspectedCasesToday = district.properties.cases;
         population.cases = district.properties.cases.toString();
         population.importsPerDay = district.properties.EWZ/80000000*12.2
@@ -193,17 +199,19 @@ describe('run()', () => {
           ...population,
           ...epidemiologicalData,
           ...simulationDataTimeRange
-        }, severityData, oAgeDistributionOfDistrict, containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
+        }, severityData, oAgeDistributionOfDistrict, oMitgationStrategy.reduction)
 
-        const Hospital_ICU_Capacity = parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.5
+        // if we have data for ICU beds use it, if not estimated based on german average of 29.2 beds per 100.000 inhabitans
+        const Hospital_ICU_Capacity_Total = "ALL_2017_ITS_Betten_Intensivbetten" in district.properties ? parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.5 : district.properties.EWZ/100000*29.2;
+        const Hospital_ICU_Capacity_Reserved_Covid_19 = Hospital_ICU_Capacity_Total * 0.5;
 
         for(let simulationPoint of result.deterministicTrajectory) {
           const point : any = { "type": "Feature", "properties": {
             "Name": district.properties.GEN,
             "Inhabitans": district.properties.EWZ,
-            "Hospital_ICU_Capacity_Total" :parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten),
-            "Hospital_ICU_Capacity": Hospital_ICU_Capacity,
-            "Hospital_Overcapacity": Hospital_ICU_Capacity+0.5 < simulationPoint.critical.total ? true : false
+            "Hospital_ICU_Capacity_Total" : Hospital_ICU_Capacity_Total,
+            "Hospital_ICU_Capacity_Reserved_Covid_19": Hospital_ICU_Capacity_Reserved_Covid_19,
+            "Hospital_Overcapacity": Hospital_ICU_Capacity_Reserved_Covid_19+0.5 < simulationPoint.critical.total ? true : false
           }, "geometry": district.geometry};
           point.properties.time = new Date(simulationPoint.time)
           point.properties.infectiousTotal = simulationPoint.infectious.total
