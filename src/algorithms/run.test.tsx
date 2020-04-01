@@ -1,9 +1,8 @@
 import { writeFileSync } from 'fs';
 import moment from 'moment'
 
-import {AllParamsFlat, SimulationData} from './Param.types'
+import {AllParamsFlat, SimulationData, ContainmentData} from './Param.types'
 import { makeTimeSeries } from './TimeSeries'
-import { ContainmentData } from 'Param.types'
 
 
 import countryAgeDistribution from '../assets/data/country_age_distribution.json'
@@ -16,6 +15,7 @@ import containmentScenarios from '../assets/data/scenarios/containment'
 import RKI_Landkreisdaten_Points from '../../../germany/kreise_with_covid19_and_hospital_count.json'
 import RKI_Landkreise_Intensivbetten from '../../../germany/Intensivbetten/RKI_Landkreise_Intensivbetten.json'
 import Germany_Kreis_Population from '../../../germany/Germany_Kreis_Population.json'
+import Counties_Corona_Inhabitans_ICU from '../../../usa/Counties_Corona_Inhabitans_ICU.json'
 
 
 import run from './run'
@@ -143,7 +143,7 @@ describe('run()', () => {
     writeFileSync("../simulation/Simulated_Landkreise_"+mitigationStrategy+".geojson", JSON.stringify(results))
   }
   */
-
+/*
  it('should work for RKI_Landkreise_Intensivbetten', async () => {
   
 
@@ -227,6 +227,89 @@ describe('run()', () => {
       // break;
     }
     writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-1-month.geojson", JSON.stringify(results))
+  }
+  */
+
+ it('should work for Counties_Corona_Inhabitans_ICU.json', async () => {
+  
+
+  const country = "United States"
+  const population = {...populationScenarios.filter(p => p.name === country)[0].data};
+
+  const mitigationStrategies : Record<string, number> = {
+    "Strong_Mitigation": 0 
+  };
+
+  for(let mitigationStrategy in mitigationStrategies) {
+    const results : Record<string, any> = {
+      "type": "FeatureCollection",
+      "name": "Counties_Corona_Inhabitans_ICU",
+      "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+      "features": []
+    };
+    
+    const epidemiologicalData = epidemiologicalScenarios[1].data;
+
+    let sDate = '2020-04-01'
+
+    const simulationDataTimeRange: SimulationData = {
+      simulationTimeRange: {
+        tMin: moment(sDate).toDate(),
+        tMax: moment(sDate)
+          .add(1, 'month')
+          .toDate(),
+      },
+      numberStochasticRuns: 0,
+    }
+
+    const countryAgeDistributionWithType = countryAgeDistribution as Record<string, any>;
+    const oAgeDistributionOfDistrict = countryAgeDistributionWithType[country]
+
+    for(let district of Counties_Corona_Inhabitans_ICU.features) {
+      try {
+
+        if(district.properties["USA-Inhabitans-By-County_Inhabitants"] == null) {
+          continue;
+        }
+        population.populationServed = parseInt(district.properties["USA-Inhabitans-By-County_Inhabitants"].replace(",", ""));
+        population.suspectedCasesToday = district.properties.Confirmed;
+        population.cases = district.properties.Confirmed.toString();
+        population.importsPerDay = population.populationServed/327000000*20
+
+
+
+        const result = await run({
+          ...population,
+          ...epidemiologicalData,
+          ...simulationDataTimeRange
+        }, severityData, oAgeDistributionOfDistrict, containmentScenarios[mitigationStrategies[mitigationStrategy]].data.reduction)
+
+        // if we have data for ICU beds use it, if not estimated based on german average of 29.2 beds per 100.000 inhabitans
+        const Hospital_ICU_Capacity_Total = "ITS-Beds-On-State_ICU_per_10000" in district.properties && district.properties["ITS-Beds-On-State_ICU_per_10000"] != null  ? parseFloat(district.properties["ITS-Beds-On-State_ICU_per_10000"])*population.populationServed/10000*0.5 : population.populationServed/10000*3.6;
+        const Hospital_ICU_Capacity_Reserved_Covid_19 = Hospital_ICU_Capacity_Total * 0.5;
+
+        for(let simulationPoint of result.deterministicTrajectory) {
+          const point : any = { "type": "Feature", "properties": {
+            "Name": district.properties.Combined_Key,
+            "Inhabitans": district.properties["USA-Inhabitans-By-County_Inhabitants"],
+            "Hospital_ICU_Capacity_Total" : Hospital_ICU_Capacity_Total,
+            "Hospital_ICU_Capacity_Reserved_Covid_19": Hospital_ICU_Capacity_Reserved_Covid_19,
+            "Hospital_Overcapacity": Hospital_ICU_Capacity_Reserved_Covid_19+0.5 < simulationPoint.critical.total ? true : false
+          }, "geometry": district.geometry};
+          point.properties.time = new Date(simulationPoint.time);
+          point.properties.infectiousTotal = simulationPoint.infectious.total < 0.1 ? 0 : simulationPoint.infectious.total;
+          point.properties.deadTotal = simulationPoint.dead.total < 0.1 ? 0 : simulationPoint.dead.total;
+          
+          // patients in ICU
+          point.properties.intensiveTotal = simulationPoint.critical.total < 0.1 ? 0 : simulationPoint.critical.total;
+          results.features.push(point);
+        }
+      } catch(e) {
+        console.error(e);
+      }
+      // break;
+    }
+    writeFileSync("../simulation/usa/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-1-month.geojson", JSON.stringify(results))
   }
  })
 })
