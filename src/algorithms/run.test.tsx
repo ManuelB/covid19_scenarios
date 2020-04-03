@@ -143,7 +143,7 @@ describe('run()', () => {
     writeFileSync("../simulation/Simulated_Landkreise_"+mitigationStrategy+".geojson", JSON.stringify(results))
   }
   */
-/*
+
  it('should work for RKI_Landkreise_Intensivbetten', async () => {
   
 
@@ -168,28 +168,28 @@ describe('run()', () => {
 
     // epidemiologicalData.lengthHospitalStay = 10
 
-    let sDate = '2020-03-31'
+    let sDate = '2020-04-03'
 
     const simulationDataTimeRange: SimulationData = {
       simulationTimeRange: {
         tMin: moment(sDate).toDate(),
         tMax: moment(sDate)
-          .add(1, 'month')
+          .add(6, 'month')
           .toDate(),
       },
       numberStochasticRuns: 0,
     }
 
     // modified strong mitigation
-    let oMitgationStrategy : ContainmentData = {reduction: makeTimeSeries(simulationData.simulationTimeRange, [0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4])};
+    let oMitgationStrategy : ContainmentData = {reduction: makeTimeSeries(simulationData.simulationTimeRange, [0.4, 0.6, 0.8, 1, 1, 1])};
 
     for(let district of RKI_Landkreise_Intensivbetten.features) {
       try {
 
         
         population.populationServed = district.properties.EWZ;
-        population.suspectedCasesToday = district.properties.cases;
-        population.cases = district.properties.cases.toString();
+        population.suspectedCasesToday = district.properties.cases*0.7;
+        population.cases = (district.properties.cases*0.7).toString();
         population.importsPerDay = district.properties.EWZ/80000000*12.2
 
 
@@ -202,16 +202,16 @@ describe('run()', () => {
         }, severityData, oAgeDistributionOfDistrict, oMitgationStrategy.reduction)
 
         // if we have data for ICU beds use it, if not estimated based on german average of 29.2 beds per 100.000 inhabitans
-        const Hospital_ICU_Capacity_Total = "ALL_2017_ITS_Betten_Intensivbetten" in district.properties ? parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.5 : district.properties.EWZ/100000*29.2;
+        const Hospital_ICU_Capacity_Total = "ALL_2017_ITS_Betten_Intensivbetten" in district.properties && district.properties.ALL_2017_ITS_Betten_Intensivbetten !== null ? parseInt(district.properties.ALL_2017_ITS_Betten_Intensivbetten)*0.5 : ("EWZ" in district.properties && district.properties.EWZ > 0 ? district.properties.EWZ/100000*29.2 : 0);
         const Hospital_ICU_Capacity_Reserved_Covid_19 = Hospital_ICU_Capacity_Total * 0.5;
 
         for(let simulationPoint of result.deterministicTrajectory) {
           const point : any = { "type": "Feature", "properties": {
             "Name": district.properties.GEN,
             "Inhabitans": district.properties.EWZ,
-            "Hospital_ICU_Capacity_Total" : Hospital_ICU_Capacity_Total,
-            "Hospital_ICU_Capacity_Reserved_Covid_19": Hospital_ICU_Capacity_Reserved_Covid_19,
-            "Hospital_Overcapacity": Hospital_ICU_Capacity_Reserved_Covid_19+0.5 < simulationPoint.critical.total ? true : false
+            "Hospital_ICU_Capacity_Total" : Hospital_ICU_Capacity_Total || 0,
+            "Hospital_ICU_Capacity_Reserved_Covid_19": Hospital_ICU_Capacity_Reserved_Covid_19 || 0,
+            "Hospital_Overcapacity": (Hospital_ICU_Capacity_Reserved_Covid_19 || 0)+0.5 < simulationPoint.critical.total ? true : false
           }, "geometry": district.geometry};
           point.properties.time = new Date(simulationPoint.time)
           point.properties.infectiousTotal = simulationPoint.infectious.total
@@ -226,10 +226,10 @@ describe('run()', () => {
       }
       // break;
     }
-    writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-1-month.geojson", JSON.stringify(results))
+    writeFileSync("../simulation/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-6-month.geojson", JSON.stringify(results))
   }
-  */
-
+  
+ /*
  it('should work for Counties_Corona_Inhabitans_ICU.json', async () => {
   
 
@@ -310,6 +310,6 @@ describe('run()', () => {
       // break;
     }
     writeFileSync("../simulation/usa/"+sDate+"_Landkreise_Intensivbetten_"+mitigationStrategy+"-1-month.geojson", JSON.stringify(results))
-  }
+  }*/
  })
 })
